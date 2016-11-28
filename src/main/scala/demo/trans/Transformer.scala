@@ -6,7 +6,7 @@ import cats.free.Free
 import demo.trans.service.ServiceOp
 import demo.trans.tag.TagOp
 
-trait Transformer[Op[_]] { mod =>
+trait Transformer[Op[_]] { mod ⇒
   type J
   type OpF[A] = Free[Op, A]
 
@@ -36,5 +36,21 @@ object Transformer {
     }
   }
 
+  implicit def appTransformer(
+    implicit
+    T: Transformer.Aux[TagOp, Env],
+    S: Transformer.Aux[ServiceOp, Env]
+  ): Transformer.Aux[Action, Env] =
+    new Transformer[Action] {
+      type J = Env
+      override def interpreterK[M[_] : Monad]: Action ~> Kleisli[M, J, ?] = new (Action ~> Kleisli[M, J, ?]) {
+        type H[A] = Kleisli[M, J, A]
+        override def apply[A](fa: Action[A]): Kleisli[M, J, A] = {
+          val f: TagOp ~> H = T.interpreterK[M]
+          val g: ServiceOp ~> H = S.interpreterK[M]
+          fa.fold(f, g)
+        }
+      }
+    }
 }
 

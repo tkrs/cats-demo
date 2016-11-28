@@ -1,82 +1,44 @@
 package demo.trans
 
-import java.time.{Instant, Duration => JD}
-
-import cats.data.{Coproduct, Kleisli}
-import cats.{Monad, ~>}
+import cats.~>
 import cats.free.Free
 import cats.instances.future._
+import cats.syntax.flatMap._
 import demo.trans.request.{RequestOp,interpreterK}
-import demo.trans.service.{ServiceOp, ServiceOps}
-import demo.trans.tag.{TagOp, TagOps}
+import demo.trans.service.ServiceOps
+import demo.trans.tag.TagOps
 
 import scala.collection.concurrent.TrieMap
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, Future}
 
+object F {
+  def request[A](action: Free[Action, A])(implicit env: Env): Free[RequestOp, Response[A]] = for {
+    s ← RequestOp.lift(env, action)
+    r ← RequestOp.reply(s)
+  } yield r
+
+  def action0(id: Int, s: String)(implicit T: TagOps[Action], S: ServiceOps[Action]): Free[Action, String] =
+    S.put(id, s) >> pure("＼(^o^)／")
+
+  def action1(id: Int)(implicit T: TagOps[Action], S: ServiceOps[Action]): Free[Action, String] =
+    (S.get(id) >>= T.reverse).map(_.getOrElse("((((；ﾟДﾟ))))ｶﾞｸｶﾞｸﾌﾞﾙﾌﾞﾙ"))
+
+  def runDaDoRunRun(implicit env: Env): Free[RequestOp, Unit] = for {
+    r0 ← request(action0(10, "Hello"))
+    _  ← RequestOp.pure(println(r0))
+    r1 ← request(action1(10))
+    _  ← RequestOp.pure(println(r1))
+    r2 ← request(action1(11))
+    _  ← RequestOp.pure(println(r2))
+  } yield ()
+}
+
 object Main extends App {
-
-  def request(s: String)(implicit env: Env): Free[RequestOp, Response] = for {
-    s <- RequestOp.lift(env, app(s))
-    r <- RequestOp.reply(s.getOrElse("((((；ﾟДﾟ))))ｶﾞｸｶﾞｸﾌﾞﾙﾌﾞﾙ"))
-  } yield r
-
-  type DemoApp[A] = Coproduct[TagOp, ServiceOp, A]
-
-  implicit def appTransformer(
-    implicit
-    T: Transformer.Aux[TagOp, Env],
-    S: Transformer.Aux[ServiceOp, Env]
-  ): Transformer.Aux[DemoApp, Env] =
-    new Transformer[DemoApp] {
-      type J = Env
-      override def interpreterK[M[_] : Monad]: DemoApp ~> Kleisli[M, J, ?] = new (DemoApp ~> Kleisli[M, J, ?]) {
-        type H[A] = Kleisli[M, J, A]
-        override def apply[A](fa: DemoApp[A]): Kleisli[M, J, A] = {
-          val f: TagOp ~> H = T.interpreterK[M]
-          val g: ServiceOp ~> H = S.interpreterK[M]
-          fa.fold(f, g)
-        }
-      }
-    }
-
-  def app(s: String)(implicit T: TagOps[DemoApp], S: ServiceOps[DemoApp]): Free[DemoApp, Option[String]] = for {
-    _ <- S.put(10, s)
-    x <- S.get(10)
-    r <- T.reverse(x)
-  } yield r
+  import F._
 
   implicit val env: Env = Env(db = TrieMap.empty[Int, String])
-
-  {
-    val start = Instant.now
-
-    val r = Await.result(
-      request("Hello").foldMap(interpreterK[Future]: RequestOp ~> FutureK).run(()),
-      Duration.Inf
-    )
-    println(s"result: $r, elapsed: ${JD.between(start, Instant.now).toMillis}ms")
-  }
-
-  {
-    val start = Instant.now
-
-    val r = Await.result(
-      request("Bonjour").foldMap(interpreterK[Future]: RequestOp ~> FutureK).run(()),
-      Duration.Inf
-    )
-    println(s"result: $r, elapsed: ${JD.between(start, Instant.now).toMillis}ms")
-  }
-
-  {
-    val start = Instant.now
-
-    val r = Await.result(
-      request("Ora").foldMap(interpreterK[Future]: RequestOp ~> FutureK).run(()),
-      Duration.Inf
-    )
-    println(s"result: $r, elapsed: ${JD.between(start, Instant.now).toMillis}ms")
-  }
-
+  val fut = runDaDoRunRun.foldMap(interpreterK[Future]: RequestOp ~> FutureK).run(())
+  Await.result(fut, Duration.Inf)
 }
