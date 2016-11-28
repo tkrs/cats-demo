@@ -27,5 +27,4 @@ object request {
         case r @ Reply(_) ⇒ r.run[F]
       }
     }
-
 }
