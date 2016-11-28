@@ -7,9 +7,7 @@ addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.9.3")
 fork in run := true
 
 libraryDependencies ++= Seq(
-  "org.typelevel" %% "cats" % "0.8.1",
-  "com.chuusai" %% "shapeless" % "2.3.2",
-  "org.scala-lang.modules" %% "scala-java8-compat" % "0.8.0"
+  "org.typelevel" %% "cats" % "0.8.1"
 ).map(_.withSources)
 
 scalacOptions ++= Seq(
@@ -27,6 +25,8 @@ scalacOptions ++= Seq(
   "-Ywarn-unused-import",
   "-Ywarn-numeric-widen",
   "-Ydelambdafy:method",
+  "-Yopt:l:method",
+  "-Yopt:l:classpath",
   "-Xfuture",
   "-Xlint"
 )
