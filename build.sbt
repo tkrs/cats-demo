@@ -25,8 +25,8 @@ scalacOptions ++= Seq(
   "-Ywarn-unused-import",
   "-Ywarn-numeric-widen",
   "-Ydelambdafy:method",
-  "-Yopt:l:method",
-  "-Yopt:l:classpath",
+  "-opt:l:method",
+  "-opt:l:classpath",
   "-Xfuture",
   "-Xlint"
 )
