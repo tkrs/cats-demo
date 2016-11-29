@@ -39,10 +39,9 @@ object Transformer {
     }
   }
 
-  implicit def appTransformer(
-                               implicit
-                               T: Transformer.Aux[TagOp, Env],
-                               S: Transformer.Aux[ServiceOp, Env]
+  implicit def appTransformer(implicit
+                              T: Transformer.Aux[TagOp, Env],
+                              S: Transformer.Aux[ServiceOp, Env]
                              ): Transformer.Aux[Action, Env] =
     new Transformer[Action] {
       type J = Env
