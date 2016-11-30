@@ -16,11 +16,11 @@ object F {
 
   def runDaDoRunRun(implicit env: Env): Free[RequestOp, Unit] = for {
     r0 ← request(action0(10, "Hello"))
-    _ ← RequestOp.pure(println(r0.content))
+    _  ← RequestOp.pure(println(r0.content))
     r1 ← request(action1(10))
-    _ ← RequestOp.pure(println(r1.content))
+    _  ← RequestOp.pure(println(r1.content))
     r2 ← request(action1(11))
-    _ ← RequestOp.pure(println(r2.content))
+    _  ← RequestOp.pure(println(r2.content))
   } yield ()
 
   def request[A](action: Free[Action, A])(implicit env: Env): Free[RequestOp, Response[A]] = for {
