@@ -1,6 +1,6 @@
 name := "cats-demo"
 version := "1.0"
-scalaVersion := "2.12.0"
+scalaVersion := "2.12.1"
 
 addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.9.3")
 
@@ -25,7 +25,6 @@ scalacOptions ++= Seq(
   "-Ywarn-unused-import",
   "-Ywarn-numeric-widen",
   "-Ydelambdafy:method",
-  "-opt:l:method",
   "-opt:l:classpath",
   "-Xfuture",
   "-Xlint"

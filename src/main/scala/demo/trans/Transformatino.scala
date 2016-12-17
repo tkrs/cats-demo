@@ -6,8 +6,7 @@ import cats.free.Free
 import demo.trans.service.ServiceOp
 import demo.trans.tag.TagOp
 
-trait Transformer[Op[_]] {
-  mod ⇒
+trait Transformation[Op[_]] { mod ⇒
   type J
   type OpF[A] = Free[Op, A]
 
@@ -20,10 +19,10 @@ trait Transformer[Op[_]] {
     }
 }
 
-object Transformer {
-  type Aux[Op[_], J0] = Transformer[Op] {type J = J0}
+object Transformation {
+  type Aux[Op[_], J0] = Transformation[Op] {type J = J0}
 
-  implicit val serviceOpTrans: Transformer.Aux[ServiceOp, Env] = new Transformer[ServiceOp] {
+  implicit val serviceOpTrans: Transformation.Aux[ServiceOp, Env] = new Transformation[ServiceOp] {
     type J = Env
 
     override def interpreterK[M[_] : Monad]: ServiceOp ~> Kleisli[M, J, ?] = new (ServiceOp ~> Kleisli[M, J, ?]) {
@@ -31,7 +30,7 @@ object Transformer {
     }
   }
 
-  implicit val tagOpTrans: Transformer.Aux[TagOp, Env] = new Transformer[TagOp] {
+  implicit val tagOpTrans: Transformation.Aux[TagOp, Env] = new Transformation[TagOp] {
     type J = Env
 
     override def interpreterK[M[_] : Monad]: TagOp ~> Kleisli[M, J, ?] = new (TagOp ~> Kleisli[M, J, ?]) {
@@ -39,11 +38,11 @@ object Transformer {
     }
   }
 
-  implicit def appTransformer(implicit
-                              T: Transformer.Aux[TagOp, Env],
-                              S: Transformer.Aux[ServiceOp, Env]
-                             ): Transformer.Aux[Action, Env] =
-    new Transformer[Action] {
+  implicit def appTransformation(implicit
+    T: Transformation.Aux[TagOp, Env],
+    S: Transformation.Aux[ServiceOp, Env]
+  ): Transformation.Aux[Action, Env] =
+    new Transformation[Action] {
       type J = Env
 
       override def interpreterK[M[_] : Monad]: Action ~> Kleisli[M, J, ?] = new (Action ~> Kleisli[M, J, ?]) {

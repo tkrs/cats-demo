@@ -16,14 +16,14 @@ object request {
 
   sealed trait RequestOp[A]
 
-  case class Lift[Op[_], A, J](j: J, action: Free[Op, A], mod: Transformer.Aux[Op, J]) extends RequestOp[A]
+  case class Lift[Op[_], A, J](j: J, action: Free[Op, A], mod: Transformation.Aux[Op, J]) extends RequestOp[A]
 
   case class Reply[A](s: A) extends RequestOp[Response[A]]
 
   object RequestOp {
     def pure[A](a: A): Free[RequestOp, A] = Free.pure(a)
 
-    def lift[Op[_], A, J](j: J, action: Free[Op, A])(implicit mod: Transformer.Aux[Op, J]): Free[RequestOp, A] =
+    def lift[Op[_], A, J](j: J, action: Free[Op, A])(implicit mod: Transformation.Aux[Op, J]): Free[RequestOp, A] =
       Free.liftF(Lift(j, action, mod))
 
     def reply[A](s: A): Free[RequestOp, Response[A]] =
