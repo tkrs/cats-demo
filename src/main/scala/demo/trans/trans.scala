@@ -1,17 +1,15 @@
 package demo
 
-import cats.data.{Coproduct, Kleisli}
+import cats.data.Coproduct
 import cats.free.Free
 import cats.syntax.flatMap._
 import demo.trans.service.{ServiceOp, ServiceOps}
 import demo.trans.tag.{TagOp, TagOps}
 
 import scala.collection.concurrent.TrieMap
-import scala.concurrent.Future
 
 package object trans {
 
-  type FutureK[A] = Kleisli[Future, Unit, A]
   type DB = TrieMap[Int, String]
   type Action[A] = Coproduct[TagOp, ServiceOp, A]
 

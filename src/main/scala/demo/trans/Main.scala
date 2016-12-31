@@ -14,14 +14,11 @@ object F {
 
   import Action._
 
-  def runDaDoRunRun(implicit env: Env): Free[RequestOp, Unit] = for {
-    r0 ← request(action0(10, "Hello"))
-    _  ← RequestOp.pure(println(r0.content))
-    r1 ← request(action1(10))
-    _  ← RequestOp.pure(println(r1.content))
-    r2 ← request(action1(11))
-    _  ← RequestOp.pure(println(r2.content))
-  } yield ()
+  def runDaDoRunRun(implicit env: Env): Free[RequestOp, Response[String]] = for {
+    _ ← request(action0(10, "Hello"))
+    _ ← request(action1(10))
+    r ← request(action1(11))
+  } yield r
 
   def request[A](action: Free[Action, A])(implicit env: Env): Free[RequestOp, Response[A]] = for {
     s ← RequestOp.lift(env, action)
@@ -34,6 +31,11 @@ object Main extends App {
   import F._
 
   implicit val env: Env = Env(db = TrieMap.empty[Int, String])
-  val fut: Future[Unit] = runDaDoRunRun.foldMap(interpreterK[Future]: RequestOp ~> FutureK).run(())
-  Await.result(fut, Duration.Inf)
+
+  val fut: Future[Response[String]] =
+    runDaDoRunRun.foldMap(interpreterK[Future]: RequestOp ~> Future)
+  val res: Response[String] =
+    Await.result(fut, Duration.Inf)
+
+  println(res.content)
 }
