@@ -1,10 +1,10 @@
-package demo
+package tut
 
 import cats.data.Coproduct
 import cats.free.Free
 import cats.syntax.flatMap._
-import demo.trans.service.{ServiceOp, ServiceOps}
-import demo.trans.tag.{TagOp, TagOps}
+import tut.trans.service.{ServiceOp, ServiceOps}
+import tut.trans.tag.{TagOp, TagOps}
 
 import scala.collection.concurrent.TrieMap
 

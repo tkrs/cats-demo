@@ -1,10 +1,10 @@
-package demo.trans
+package tut.trans
 
 import cats.{Monad, ~>}
 import cats.data.Kleisli
 import cats.free.Free
-import demo.trans.service.ServiceOp
-import demo.trans.tag.TagOp
+import tut.trans.service.ServiceOp
+import tut.trans.tag.TagOp
 
 // See [[https://github.com/tpolecat/doobie/blob/series/0.3.x/yax/core/src/main/scala/doobie/free/kleislitrans.scala]]
 trait KleisliTrans[Op[_]] { mod ⇒

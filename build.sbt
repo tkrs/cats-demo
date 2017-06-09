@@ -1,13 +1,13 @@
-name := "cats-demo"
+name := "cats-tut"
 version := "1.0"
-scalaVersion := "2.12.1"
+scalaVersion := "2.12.2"
 
 addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.9.3")
 
 fork in run := true
 
 libraryDependencies ++= Seq(
-  "org.typelevel" %% "cats" % "0.8.1"
+  "org.typelevel" %% "cats" % "0.9.0"
 ).map(_.withSources)
 
 scalacOptions ++= Seq(

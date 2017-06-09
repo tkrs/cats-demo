@@ -1,4 +1,4 @@
-package demo.trans
+package tut.trans
 
 import cats.free.Free
 import cats.{Monad, ~>}

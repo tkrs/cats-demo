@@ -1,9 +1,9 @@
-package demo.trans
+package tut.trans
 
 import cats.~>
 import cats.free.Free
 import cats.instances.future._
-import demo.trans.request.{RequestOp, interpreterK}
+import tut.trans.request.{RequestOp, interpreterK}
 
 import scala.collection.concurrent.TrieMap
 import scala.concurrent.ExecutionContext.Implicits.global
