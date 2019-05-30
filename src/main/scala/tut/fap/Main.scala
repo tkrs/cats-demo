@@ -5,7 +5,7 @@ import java.time.format.DateTimeFormatterBuilder
 
 import cats.data.EitherK
 import cats.syntax.apply._
-import cats.{~>, Monad, MonadError}
+import cats.{~>, InjectK, Monad, MonadError}
 import cats.free.{Free, FreeApplicative => FreeAp}
 
 import scala.concurrent.{Await, Future}
@@ -28,31 +28,23 @@ object fs {
     def pure[F[_], A](a: A): SeqF[F, A] =
       Free.pure[Par[F, ?], A](a)
 
-    def inject[F[_], G[_]](implicit interpret: F ~> G): F ~> Par[G, ?] =
-      λ[F ~> Par[G, ?]](fa => FreeAp.lift(interpret(fa)))
+    def inject[F[_], G[_]](implicit inj: InjectK[F, G]): F ~> Par[G, ?] =
+      λ[F ~> Par[G, ?]](fa => FreeAp.lift(inj(fa)))
 
     def interpret[F[_], G[_]: Monad](implicit interpret: F ~> G): Par[F, ?] ~> G =
       λ[Par[F, ?] ~> G](_.foldMap(interpret))
   }
 
-  implicit def handleInjection[F[_], G[_], H[_]](
-      implicit
-      f: F ~> H,
-      g: G ~> H
-  ): EitherK[F, G, ?] ~> H =
+  implicit def handleInjection[F[_], G[_], H[_]](implicit
+                                                 f: F ~> H,
+                                                 g: G ~> H): EitherK[F, G, ?] ~> H =
     λ[EitherK[F, G, ?] ~> H](_.fold(f, g))
 
   implicit def parToSeq[F[_], A](fa: SeqF.Par[F, A]): SeqF[F, A] =
     SeqF.liftPar(fa)
 }
 
-object models {
-  final case class CA(s: String)
-  final case class CB(l: Long)
-}
-
 object mod {
-  import models._
 
   trait EffectLike[F[_]] {
     type FS[A] = FreeAp[F, A]
@@ -68,7 +60,7 @@ object mod {
     final case class Get(id: Long)  extends Op[CA]
     final case class Put(value: CA) extends Op[Unit]
 
-    implicit def repositoryA[F[_]](implicit I: Op ~> F): RepositoryA[F] = new RepositoryA[F] {
+    implicit def repositoryA[F[_]](implicit inj: InjectK[Op, F]): RepositoryA[F] = new RepositoryA[F] {
       override def get(id: Long): FS[CA] = fs.SeqF.inject[Op, F].apply(Get(id))
       override def put(a: CA): FS[Unit]  = fs.SeqF.inject[Op, F].apply(Put(a))
     }
@@ -97,7 +89,7 @@ object mod {
     final case class Get(id: Long)  extends Op[CB]
     final case class Put(value: CB) extends Op[Unit]
 
-    implicit def repositoryB[F[_]](implicit I: Op ~> F): RepositoryB[F] = new RepositoryB[F] {
+    implicit def repositoryB[F[_]](implicit inj: InjectK[Op, F]): RepositoryB[F] = new RepositoryB[F] {
       override def get(id: Long): FS[CB] = fs.SeqF.inject[Op, F].apply(Get(id))
       override def put(a: CB): FS[Unit]  = fs.SeqF.inject[Op, F].apply(Put(a))
     }
@@ -125,18 +117,11 @@ object Repo {
 
   def interpret[F[_]: Monad](implicit i: Op ~> F): SeqF.Par[Op, ?] ~> F =
     SeqF.interpret[Op, F]
-
-  object implicits {
-    implicit val repoAtoRepo: RepositoryA.Op ~> Op = λ[RepositoryA.Op ~> Op](EitherK.leftc(_))
-    implicit val repoBtoRepo: RepositoryB.Op ~> Op = λ[RepositoryB.Op ~> Op](EitherK.rightc(_))
-  }
 }
 
 object Main {
   import fs._
   import mod._
-  import models._
-  import Repo.implicits._
 
   implicit def repoA[F[_]](
       implicit
@@ -199,8 +184,10 @@ object Main {
       (getA[F], getB[F]).tupled
 
     Log.println(s"START")
+
     val f      = program[Repo.Op].foldMap(Repo.interpret[Future])
     val result = Await.result(f, 10.seconds)
+
     Log.println(result)
   }
 }
@@ -210,3 +197,6 @@ object Log {
   def println(s: Any): Unit =
     scala.Predef.println(fmt.format(Instant.now) + " [" + Thread.currentThread().getName + "] " + s)
 }
+
+final case class CA(s: String)
+final case class CB(l: Long)
