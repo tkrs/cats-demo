@@ -68,12 +68,10 @@ object mod {
     final case class Get(id: Long)  extends Op[CA]
     final case class Put(value: CA) extends Op[Unit]
 
-    class To[F[_]](implicit I: Op ~> F) extends RepositoryA[F] {
+    implicit def repositoryA[F[_]](implicit I: Op ~> F): RepositoryA[F] = new RepositoryA[F] {
       override def get(id: Long): FS[CA] = fs.SeqF.inject[Op, F].apply(Get(id))
       override def put(a: CA): FS[Unit]  = fs.SeqF.inject[Op, F].apply(Put(a))
     }
-
-    implicit def to[F[_]](implicit I: Op ~> F): To[F] = new To
 
     def apply[F[_]](implicit c: RepositoryA[F]): RepositoryA[F] = c
 
@@ -99,12 +97,10 @@ object mod {
     final case class Get(id: Long)  extends Op[CB]
     final case class Put(value: CB) extends Op[Unit]
 
-    class To[F[_]](implicit I: Op ~> F) extends RepositoryB[F] {
+    implicit def repositoryB[F[_]](implicit I: Op ~> F): RepositoryB[F] = new RepositoryB[F] {
       override def get(id: Long): FS[CB] = fs.SeqF.inject[Op, F].apply(Get(id))
       override def put(a: CB): FS[Unit]  = fs.SeqF.inject[Op, F].apply(Put(a))
     }
-
-    implicit def to[F[_]](implicit I: Op ~> F): To[F] = new To
 
     def apply[F[_]](implicit c: RepositoryB[F]): RepositoryB[F] = c
 
@@ -131,20 +127,8 @@ object Repo {
     SeqF.interpret[Op, F]
 
   object implicits {
-
-    implicit val AtoRepo: RepositoryA.Op ~> Op = new (RepositoryA.Op ~> Op) {
-      override def apply[A](fa: RepositoryA.Op[A]): Op[A] = fa match {
-        case RepositoryA.Get(id)    => EitherK.leftc(RepositoryA.Get(id))
-        case RepositoryA.Put(value) => EitherK.leftc(RepositoryA.Put(value))
-      }
-    }
-
-    implicit val BtoRepo: RepositoryB.Op ~> Op = new (RepositoryB.Op ~> Op) {
-      override def apply[A](fa: RepositoryB.Op[A]): Op[A] = fa match {
-        case RepositoryB.Get(id)    => EitherK.rightc(RepositoryB.Get(id))
-        case RepositoryB.Put(value) => EitherK.rightc(RepositoryB.Put(value))
-      }
-    }
+    implicit val repoAtoRepo: RepositoryA.Op ~> Op = λ[RepositoryA.Op ~> Op](EitherK.leftc(_))
+    implicit val repoBtoRepo: RepositoryB.Op ~> Op = λ[RepositoryB.Op ~> Op](EitherK.rightc(_))
   }
 }
 
