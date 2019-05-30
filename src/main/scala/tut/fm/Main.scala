@@ -1,8 +1,8 @@
 package tut.fm
 
-import cats.data.Coproduct
-import cats.free.{Free, Inject}
-import cats.{Id, ~>}
+import cats.data.EitherK
+import cats.free.Free
+import cats.{Id, InjectK, ~>}
 
 // See [[http://underscore.io/blog/posts/2017/03/29/free-inject.html]]
 
@@ -17,13 +17,13 @@ object FOp {
   }
 }
 
-class FOps[F[_]](implicit F: Inject[FOp, F]) {
+class FOps[F[_]](implicit F: InjectK[FOp, F]) {
   import FOp._
   def one: Free[F, Int] = Free.inject[FOp, F](One)
 }
 
 object FOps {
-  implicit def fops[F[_]](implicit F: Inject[FOp, F]): FOps[F] = new FOps
+  implicit def fops[F[_]](implicit F: InjectK[FOp, F]): FOps[F] = new FOps
 }
 
 sealed trait GOp[A]
@@ -37,13 +37,13 @@ object GOp {
   }
 }
 
-class GOps[F[_]](implicit F: Inject[GOp, F]) {
+class GOps[F[_]](implicit F: InjectK[GOp, F]) {
   import GOp._
   def two: Free[F, Int] = Free.inject[GOp, F](Two)
 }
 
 object GOps {
-  implicit def gops[F[_]](implicit F: Inject[GOp, F]): GOps[F] = new GOps
+  implicit def gops[F[_]](implicit F: InjectK[GOp, F]): GOps[F] = new GOps
 }
 
 sealed trait HOp[A]
@@ -57,32 +57,33 @@ object HOp {
   }
 }
 
-class HOps[F[_]](implicit F: Inject[HOp, F]) {
+class HOps[F[_]](implicit F: InjectK[HOp, F]) {
   import HOp._
   def three: Free[F, Int] = Free.inject[HOp, F](Three)
 }
 
 object HOps {
-  implicit def hops[F[_]](implicit F: Inject[HOp, F]): HOps[F] = new HOps
+  implicit def hops[F[_]](implicit F: InjectK[HOp, F]): HOps[F] = new HOps
 }
 
 object Main {
 
-  type GH[A] = Coproduct[GOp, HOp, A]
+  type GH[A] = EitherK[GOp, HOp, A]
   object GH {
     def interpret: GH ~> Id = GOp.interpret or HOp.interpret
   }
 
-  type FGH[A] = Coproduct[FOp, GH, A]
+  type FGH[A] = EitherK[FOp, GH, A]
   object FGH {
     def interpret: FGH ~> Id = FOp.interpret or GH.interpret
   }
 
-  def prog(implicit F: FOps[FGH], G: GOps[FGH], H: HOps[FGH]): Free[FGH, Int] = for {
-    f <- F.one
-    g <- G.two
-    h <- H.three
-  } yield f + g + h
+  def prog(implicit F: FOps[FGH], G: GOps[FGH], H: HOps[FGH]): Free[FGH, Int] =
+    for {
+      f <- F.one
+      g <- G.two
+      h <- H.three
+    } yield f + g + h
 
   def main(args: Array[String]): Unit = {
     val ans: Int = prog.foldMap(FGH.interpret)

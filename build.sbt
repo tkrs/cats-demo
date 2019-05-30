@@ -1,13 +1,14 @@
 name := "cats-tut"
 version := "1.0"
-scalaVersion := "2.12.2"
+scalaVersion := "2.12.8"
 
-addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.9.3")
+addCompilerPlugin("org.typelevel" %% "kind-projector" % "0.10.1")
 
 fork in run := true
 
 libraryDependencies ++= Seq(
-  "org.typelevel" %% "cats" % "0.9.0"
+  "org.typelevel" %% "cats-core" % "1.6.0",
+  "org.typelevel" %% "cats-free" % "1.6.0"
 ).map(_.withSources)
 
 scalacOptions ++= Seq(
@@ -15,17 +16,14 @@ scalacOptions ++= Seq(
   "-encoding", "UTF-8",
   "-unchecked",
   "-feature",
-  "-language:existentials",
-  "-language:higherKinds",
-  "-language:implicitConversions",
-  "-language:postfixOps",
+  "-language:_",
   "-unchecked",
+  "-Ypartial-unification",
   "-Yno-adapted-args",
   "-Ywarn-dead-code",
-  "-Ywarn-unused-import",
+  "-Ywarn-unused:_",
   "-Ywarn-numeric-widen",
   "-Ydelambdafy:method",
-  "-opt:l:classpath",
   "-Xfuture",
   "-Xlint"
 )
