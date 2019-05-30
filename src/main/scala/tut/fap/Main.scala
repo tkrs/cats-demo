@@ -5,7 +5,7 @@ import java.time.format.DateTimeFormatterBuilder
 
 import cats.data.EitherK
 import cats.syntax.apply._
-import cats.{Monad, MonadError, ~>}
+import cats.{~>, Monad, MonadError}
 import cats.free.{Free, FreeApplicative => FreeAp}
 
 import scala.concurrent.{Await, Future}
@@ -31,8 +31,7 @@ object fs {
     def inject[F[_], G[_]](implicit interpret: F ~> G): F ~> Par[G, ?] =
       λ[F ~> Par[G, ?]](fa => FreeAp.lift(interpret(fa)))
 
-    def interpret[F[_], G[_]: Monad](
-        implicit interpret: F ~> G): Par[F, ?] ~> G =
+    def interpret[F[_], G[_]: Monad](implicit interpret: F ~> G): Par[F, ?] ~> G =
       λ[Par[F, ?] ~> G](_.foldMap(interpret))
   }
 
@@ -65,13 +64,13 @@ object mod {
   }
 
   object RepositoryA {
-    sealed trait Op[A] extends Product with Serializable
-    final case class Get(id: Long) extends Op[CA]
+    sealed trait Op[A]              extends Product with Serializable
+    final case class Get(id: Long)  extends Op[CA]
     final case class Put(value: CA) extends Op[Unit]
 
     class To[F[_]](implicit I: Op ~> F) extends RepositoryA[F] {
       override def get(id: Long): FS[CA] = fs.SeqF.inject[Op, F].apply(Get(id))
-      override def put(a: CA): FS[Unit] = fs.SeqF.inject[Op, F].apply(Put(a))
+      override def put(a: CA): FS[Unit]  = fs.SeqF.inject[Op, F].apply(Put(a))
     }
 
     implicit def to[F[_]](implicit I: Op ~> F): To[F] = new To
@@ -96,13 +95,13 @@ object mod {
   }
 
   object RepositoryB {
-    sealed trait Op[A] extends Product with Serializable
-    final case class Get(id: Long) extends Op[CB]
+    sealed trait Op[A]              extends Product with Serializable
+    final case class Get(id: Long)  extends Op[CB]
     final case class Put(value: CB) extends Op[Unit]
 
     class To[F[_]](implicit I: Op ~> F) extends RepositoryB[F] {
       override def get(id: Long): FS[CB] = fs.SeqF.inject[Op, F].apply(Get(id))
-      override def put(a: CB): FS[Unit] = fs.SeqF.inject[Op, F].apply(Put(a))
+      override def put(a: CB): FS[Unit]  = fs.SeqF.inject[Op, F].apply(Put(a))
     }
 
     implicit def to[F[_]](implicit I: Op ~> F): To[F] = new To
@@ -160,12 +159,11 @@ object Main {
       ME: MonadError[F, Throwable]
   ): RepositoryA.Handler[F] = new RepositoryA.Handler[F] {
     override protected[this] def get(id: Long): F[CA] =
-      ME.catchNonFatal(
-        blocking {
-          MILLISECONDS.sleep(1000)
-          Log.println(s"A.get($id)")
-          CA("hola")
-        })
+      ME.catchNonFatal(blocking {
+        MILLISECONDS.sleep(1000)
+        Log.println(s"A.get($id)")
+        CA("hola")
+      })
     override protected[this] def put(a: CA): F[Unit] =
       ME.catchNonFatal(blocking {
         MILLISECONDS.sleep(500)
@@ -197,7 +195,13 @@ object Main {
 
     def getA[F[_]](implicit A: RepositoryA[F]): SeqF[F, CA] =
       for {
-        _ <- (A.put(CA("a")), A.put(CA("b")), A.put(CA("c")), A.put(CA("d")), A.put(CA("e")), A.put(CA("f")), A.put(CA("g"))).tupled
+        _ <- (A.put(CA("a")),
+              A.put(CA("b")),
+              A.put(CA("c")),
+              A.put(CA("d")),
+              A.put(CA("e")),
+              A.put(CA("f")),
+              A.put(CA("g"))).tupled
         a <- A.get(30)
       } yield a
 
@@ -211,7 +215,7 @@ object Main {
       (getA[F], getB[F]).tupled
 
     Log.println(s"START")
-    val f = program[Repo.Op].foldMap(Repo.interpret[Future])
+    val f      = program[Repo.Op].foldMap(Repo.interpret[Future])
     val result = Await.result(f, 10.seconds)
     Log.println(result)
   }
@@ -219,7 +223,6 @@ object Main {
 
 object Log {
   private[this] val fmt = new DateTimeFormatterBuilder().appendInstant(3).toFormatter()
-  def println(s: Any): Unit = {
+  def println(s: Any): Unit =
     scala.Predef.println(fmt.format(Instant.now) + " [" + Thread.currentThread().getName + "] " + s)
-  }
 }
