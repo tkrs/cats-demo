@@ -4,188 +4,210 @@ import java.time.Instant
 import java.time.format.DateTimeFormatterBuilder
 
 import cats.data.EitherK
-import cats.syntax.apply._
-import cats.{~>, InjectK, Monad, MonadError}
+import cats.{~>, Eval, InjectK, Monad, MonadError}
 import cats.free.{Free, FreeApplicative => FreeAp}
 
 import scala.concurrent.{Await, Future}
 import scala.concurrent.blocking
 import scala.concurrent.duration._
 
-// Imitate to [[http://frees.io/]] (´・ω・`)
+object mod {
+  type ParF[F[_], A] = FreeAp[F, A]
+  type SeqF[F[_], A] = Free[ParF[F, ?], A]
 
-object fs {
-
-  type SeqF[F[_], A] = Free[FreeAp[F, ?], A]
+  object ParF {
+    def pure[F[_], A](a: A): ParF[F, A] = FreeAp.pure[F, A](a)
+  }
 
   object SeqF {
 
-    type Par[F[_], A] = FreeAp[F, A]
-
-    def liftPar[F[_], A](fa: Par[F, A]): SeqF[F, A] =
-      Free.liftF[Par[F, ?], A](fa)
+    def liftPar[F[_], A](fa: ParF[F, A]): SeqF[F, A] =
+      Free.liftF[ParF[F, ?], A](fa)
 
     def pure[F[_], A](a: A): SeqF[F, A] =
-      Free.pure[Par[F, ?], A](a)
+      Free.pure[ParF[F, ?], A](a)
 
-    def inject[F[_], G[_]](implicit inj: InjectK[F, G]): F ~> Par[G, ?] =
-      λ[F ~> Par[G, ?]](fa => FreeAp.lift(inj(fa)))
+    def inject[F[_], G[_]](implicit inj: InjectK[F, G]): F ~> ParF[G, ?] =
+      λ[F ~> ParF[G, ?]](fa => FreeAp.lift(inj(fa)))
 
-    def interpret[F[_], G[_]: Monad](implicit interpret: F ~> G): Par[F, ?] ~> G =
-      λ[Par[F, ?] ~> G](_.foldMap(interpret))
+    def interpret[F[_], G[_]: Monad](interpret: F ~> G): ParF[F, ?] ~> G =
+      λ[ParF[F, ?] ~> G](_.foldMap(interpret))
   }
 
-  implicit def handleInjection[F[_], G[_], H[_]](implicit
-                                                 f: F ~> H,
-                                                 g: G ~> H): EitherK[F, G, ?] ~> H =
-    λ[EitherK[F, G, ?] ~> H](_.fold(f, g))
-
-  implicit def parToSeq[F[_], A](fa: SeqF.Par[F, A]): SeqF[F, A] =
+  implicit def parToSeq[F[_], A](fa: ParF[F, A]): SeqF[F, A] =
     SeqF.liftPar(fa)
-}
 
-object mod {
+  implicit final class ParOp[F[_], A](val par: ParF[F, A]) extends AnyVal {
+    def liftPar: SeqF[F, A] = SeqF.liftPar(par)
+  }
 
   trait EffectLike[F[_]] {
     type FS[A] = FreeAp[F, A]
   }
+}
 
-  trait RepositoryA[F[_]] extends EffectLike[F] {
-    def get(id: Long): FS[CA]
-    def put(a: CA): FS[Unit]
+import mod._
+
+final case class CA(s: String)
+final case class CB(l: Long)
+final case class CC(l: Long)
+
+trait RepoA[F[_]] extends EffectLike[F] {
+  def get(id: Long): FS[CA]
+  def put(a: CA): FS[Unit]
+}
+
+object RepoA {
+  sealed trait Op[A]              extends Product with Serializable
+  final case class Get(id: Long)  extends Op[CA]
+  final case class Put(value: CA) extends Op[Unit]
+
+  implicit def repositoryA[F[_]](implicit inj: InjectK[Op, F]): RepoA[F] = new RepoA[F] {
+    def get(id: Long): FS[CA] = SeqF.inject[Op, F].apply(Get(id))
+    def put(a: CA): FS[Unit]  = SeqF.inject[Op, F].apply(Put(a))
   }
 
-  object RepositoryA {
-    sealed trait Op[A]              extends Product with Serializable
-    final case class Get(id: Long)  extends Op[CA]
-    final case class Put(value: CA) extends Op[Unit]
+  def apply[F[_]](implicit c: RepoA[F]): RepoA[F] = c
 
-    implicit def repositoryA[F[_]](implicit inj: InjectK[Op, F]): RepositoryA[F] = new RepositoryA[F] {
-      override def get(id: Long): FS[CA] = fs.SeqF.inject[Op, F].apply(Get(id))
-      override def put(a: CA): FS[Unit]  = fs.SeqF.inject[Op, F].apply(Put(a))
-    }
+  trait Handler[M[_]] extends (Op ~> M) {
 
-    def apply[F[_]](implicit c: RepositoryA[F]): RepositoryA[F] = c
+    protected def get(id: Long): M[CA]
+    protected def put(value: CA): M[Unit]
 
-    trait Handler[M[_]] extends (Op ~> M) {
-
-      protected[this] def get(id: Long): M[CA]
-      protected[this] def put(value: CA): M[Unit]
-
-      override def apply[A](fa: Op[A]): M[A] = fa match {
-        case l @ Get(_) => get(l.id)
-        case l @ Put(_) => put(l.value)
-      }
+    def apply[A](fa: Op[A]): M[A] = fa match {
+      case l: Get => get(l.id)
+      case l: Put => put(l.value)
     }
   }
+}
 
-  trait RepositoryB[F[_]] extends EffectLike[F] {
-    def get(id: Long): FS[CB]
-    def put(a: CB): FS[Unit]
+trait RepoB[F[_]] extends EffectLike[F] {
+  def get(id: Long): FS[CB]
+  def put(a: CB): FS[Unit]
+}
+
+object RepoB {
+  sealed trait Op[A]              extends Product with Serializable
+  final case class Get(id: Long)  extends Op[CB]
+  final case class Put(value: CB) extends Op[Unit]
+
+  implicit def repositoryB[F[_]](implicit inj: InjectK[Op, F]): RepoB[F] = new RepoB[F] {
+    def get(id: Long): FS[CB] = SeqF.inject[Op, F].apply(Get(id))
+    def put(a: CB): FS[Unit]  = SeqF.inject[Op, F].apply(Put(a))
   }
 
-  object RepositoryB {
-    sealed trait Op[A]              extends Product with Serializable
-    final case class Get(id: Long)  extends Op[CB]
-    final case class Put(value: CB) extends Op[Unit]
+  def apply[F[_]](implicit c: RepoB[F]): RepoB[F] = c
 
-    implicit def repositoryB[F[_]](implicit inj: InjectK[Op, F]): RepositoryB[F] = new RepositoryB[F] {
-      override def get(id: Long): FS[CB] = fs.SeqF.inject[Op, F].apply(Get(id))
-      override def put(a: CB): FS[Unit]  = fs.SeqF.inject[Op, F].apply(Put(a))
+  trait Handler[M[_]] extends (Op ~> M) {
+
+    protected def get(id: Long): M[CB]
+    protected def put(value: CB): M[Unit]
+
+    def apply[A](fa: Op[A]): M[A] = fa match {
+      case l: Get => get(l.id)
+      case l: Put => put(l.value)
     }
+  }
+}
 
-    def apply[F[_]](implicit c: RepositoryB[F]): RepositoryB[F] = c
+trait RepoC[F[_]] extends EffectLike[F] {
+  def get(id: Long): FS[CC]
+  def put(a: CC): FS[Unit]
+}
 
-    trait Handler[M[_]] extends (Op ~> M) {
+object RepoC {
+  sealed trait Op[A]              extends Product with Serializable
+  final case class Get(id: Long)  extends Op[CC]
+  final case class Put(value: CC) extends Op[Unit]
 
-      protected[this] def get(id: Long): M[CB]
-      protected[this] def put(value: CB): M[Unit]
+  implicit def repositoryC[F[_]](implicit inj: InjectK[Op, F]): RepoC[F] = new RepoC[F] {
+    def get(id: Long): FS[CC] = SeqF.inject[Op, F].apply(Get(id))
+    def put(a: CC): FS[Unit]  = SeqF.inject[Op, F].apply(Put(a))
+  }
 
-      override def apply[A](fa: Op[A]): M[A] = fa match {
-        case l @ Get(_) => get(l.id)
-        case l @ Put(_) => put(l.value)
-      }
+  def apply[F[_]](implicit c: RepoC[F]): RepoC[F] = c
+
+  trait Handler[M[_]] extends (Op ~> M) {
+
+    protected def get(id: Long): M[CC]
+    protected def put(value: CC): M[Unit]
+
+    def apply[A](fa: Op[A]): M[A] = fa match {
+      case l: Get => get(l.id)
+      case l: Put => put(l.value)
     }
   }
 }
 
 object Repo {
-  import fs._
-  import mod._
 
-  type Op[A] = EitherK[RepositoryA.Op, RepositoryB.Op, A]
+  type Op0[A] = EitherK[RepoB.Op, RepoC.Op, A]
+  type Op[A]  = EitherK[RepoA.Op, Op0, A]
 
-  def interpret[F[_]: Monad](implicit i: Op ~> F): SeqF.Par[Op, ?] ~> F =
-    SeqF.interpret[Op, F]
+  def interpret[F[_]: Monad](i: Op ~> F): ParF[Op, ?] ~> F =
+    SeqF.interpret[Op, F](i)
 }
 
 object Main {
-  import fs._
-  import mod._
 
-  implicit def repoA[F[_]](
-      implicit
-      ME: MonadError[F, Throwable]
-  ): RepositoryA.Handler[F] = new RepositoryA.Handler[F] {
-    override protected[this] def get(id: Long): F[CA] =
+  def repoA[F[_]](implicit ME: MonadError[F, Throwable]): RepoA.Handler[F] = new RepoA.Handler[F] {
+    def get(id: Long): F[CA] =
       ME.catchNonFatal(blocking {
-        MILLISECONDS.sleep(1000)
+        MILLISECONDS.sleep(100)
         Log.println(s"A.get($id)")
         CA("hola")
       })
-    override protected[this] def put(a: CA): F[Unit] =
+    def put(a: CA): F[Unit] =
       ME.catchNonFatal(blocking {
         MILLISECONDS.sleep(500)
         Log.println(s"A.put($a)")
       })
   }
 
-  implicit def repoB[F[_]](
-      implicit
-      ME: MonadError[F, Throwable]
-  ): RepositoryB.Handler[F] = new RepositoryB.Handler[F] {
-    override protected[this] def get(id: Long): F[CB] =
+  def repoB[F[_]](implicit ME: MonadError[F, Throwable]): RepoB.Handler[F] = new RepoB.Handler[F] {
+    def get(id: Long): F[CB] =
       ME.catchNonFatal(blocking {
-        MILLISECONDS.sleep(800)
+        MILLISECONDS.sleep(300)
         Log.println(s"B.get($id)")
         CB(Long.MaxValue)
       })
-    override protected[this] def put(b: CB): F[Unit] =
+    def put(b: CB): F[Unit] =
       ME.catchNonFatal(blocking {
-        MILLISECONDS.sleep(200)
+        MILLISECONDS.sleep(500)
         Log.println(s"B.put($b)")
       })
   }
 
+  def repoC[F[_]](implicit ME: MonadError[F, Throwable]): RepoC.Handler[F] = new RepoC.Handler[F] {
+    def get(id: Long): F[CC]    = ME.catchNonFatalEval(Eval.later(CC(id)))
+    def put(value: CC): F[Unit] = ME.catchNonFatal(Log.println(value))
+  }
+
   def main(args: Array[String]): Unit = {
     import cats.instances.future._
+    import cats.syntax.apply._
 
     import scala.concurrent.ExecutionContext.Implicits.global
 
-    def getA[F[_]](implicit A: RepositoryA[F]): SeqF[F, CA] =
-      for {
-        _ <- (A.put(CA("a")),
-              A.put(CA("b")),
-              A.put(CA("c")),
-              A.put(CA("d")),
-              A.put(CA("e")),
-              A.put(CA("f")),
-              A.put(CA("g"))).tupled
-        a <- A.get(30)
-      } yield a
+    def putA[F[_]](implicit A: RepoA[F]): ParF[F, Unit] =
+      (A.put(CA("a")), A.put(CA("b")), A.put(CA("c")), A.put(CA("d")), A.put(CA("e")), A.put(CA("f")), A.put(CA("g"))).tupled *> ParF
+        .pure(())
 
-    def getB[F[_]](implicit B: RepositoryB[F]): SeqF[F, (CB, CB)] =
-      for {
-        _ <- (B.put(CB(100L)), B.put(CB(200L)), B.put(CB(300L))).tupled
-        b <- (B.get(10L), B.get(10L)).tupled
-      } yield b
+    def putB[F[_]](implicit B: RepoB[F]): ParF[F, Unit] =
+      (B.put(CB(100L)), B.put(CB(200L)), B.put(CB(300L))).tupled *> ParF.pure(())
 
-    def program[F[_]: RepositoryB: RepositoryA]: SeqF[F, (CA, (CB, CB))] =
-      (getA[F], getB[F]).tupled
+    def program[F[_]](implicit A: RepoA[F], B: RepoB[F]): SeqF[F, (CA, CB, CB)] =
+      for {
+        _ <- (putA[F], putB[F]).tupled
+        v <- (A.get(10L), B.get(20L), B.get(30L)).tupled
+      } yield v
+
+    def repo[F[_]](implicit F: MonadError[F, Throwable]): Repo.Op ~> F =
+      repoA[F].or(repoB[F].or(repoC[F]))
 
     Log.println(s"START")
 
-    val f      = program[Repo.Op].foldMap(Repo.interpret[Future])
+    val f      = program[Repo.Op].foldMap(Repo.interpret[Future](repo[Future]))
     val result = Await.result(f, 10.seconds)
 
     Log.println(result)
@@ -193,10 +215,9 @@ object Main {
 }
 
 object Log {
+
   private[this] val fmt = new DateTimeFormatterBuilder().appendInstant(3).toFormatter()
+
   def println(s: Any): Unit =
     scala.Predef.println(fmt.format(Instant.now) + " [" + Thread.currentThread().getName + "] " + s)
 }
-
-final case class CA(s: String)
-final case class CB(l: Long)
