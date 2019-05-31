@@ -39,10 +39,6 @@ object mod {
   implicit final class ParOp[F[_], A](val par: ParF[F, A]) extends AnyVal {
     def liftPar: SeqF[F, A] = SeqF.liftPar(par)
   }
-
-  trait EffectLike[F[_]] {
-    type FS[A] = FreeAp[F, A]
-  }
 }
 
 import tut.fap.mod._
@@ -51,9 +47,9 @@ final case class CA(s: String)
 final case class CB(l: Long)
 final case class CC(l: Long)
 
-trait RepoA[F[_]] extends EffectLike[F] {
-  def get(id: Long): FS[CA]
-  def put(a: CA): FS[Unit]
+trait RepoA[F[_]] {
+  def get(id: Long): ParF[F, CA]
+  def put(a: CA): ParF[F, Unit]
 }
 
 object RepoA {
@@ -62,8 +58,8 @@ object RepoA {
   final case class Put(value: CA) extends Op[Unit]
 
   implicit def repositoryA[F[_]](implicit inj: InjectK[Op, F]): RepoA[F] = new RepoA[F] {
-    def get(id: Long): FS[CA] = SeqF.inject[Op, F].apply(Get(id))
-    def put(a: CA): FS[Unit]  = SeqF.inject[Op, F].apply(Put(a))
+    def get(id: Long): ParF[F, CA] = SeqF.inject[Op, F].apply(Get(id))
+    def put(a: CA): ParF[F, Unit]  = SeqF.inject[Op, F].apply(Put(a))
   }
 
   def apply[F[_]](implicit c: RepoA[F]): RepoA[F] = c
@@ -80,9 +76,9 @@ object RepoA {
   }
 }
 
-trait RepoB[F[_]] extends EffectLike[F] {
-  def get(id: Long): FS[CB]
-  def put(a: CB): FS[Unit]
+trait RepoB[F[_]] {
+  def get(id: Long): ParF[F, CB]
+  def put(a: CB): ParF[F, Unit]
 }
 
 object RepoB {
@@ -91,8 +87,8 @@ object RepoB {
   final case class Put(value: CB) extends Op[Unit]
 
   implicit def repositoryB[F[_]](implicit inj: InjectK[Op, F]): RepoB[F] = new RepoB[F] {
-    def get(id: Long): FS[CB] = SeqF.inject[Op, F].apply(Get(id))
-    def put(a: CB): FS[Unit]  = SeqF.inject[Op, F].apply(Put(a))
+    def get(id: Long): ParF[F, CB] = SeqF.inject[Op, F].apply(Get(id))
+    def put(a: CB): ParF[F, Unit]  = SeqF.inject[Op, F].apply(Put(a))
   }
 
   def apply[F[_]](implicit c: RepoB[F]): RepoB[F] = c
@@ -109,9 +105,9 @@ object RepoB {
   }
 }
 
-trait RepoC[F[_]] extends EffectLike[F] {
-  def get(id: Long): FS[CC]
-  def put(a: CC): FS[Unit]
+trait RepoC[F[_]] {
+  def get(id: Long): ParF[F, CC]
+  def put(a: CC): ParF[F, Unit]
 }
 
 object RepoC {
@@ -120,8 +116,8 @@ object RepoC {
   final case class Put(value: CC) extends Op[Unit]
 
   implicit def repositoryC[F[_]](implicit inj: InjectK[Op, F]): RepoC[F] = new RepoC[F] {
-    def get(id: Long): FS[CC] = SeqF.inject[Op, F].apply(Get(id))
-    def put(a: CC): FS[Unit]  = SeqF.inject[Op, F].apply(Put(a))
+    def get(id: Long): ParF[F, CC] = SeqF.inject[Op, F].apply(Get(id))
+    def put(a: CC): ParF[F, Unit]  = SeqF.inject[Op, F].apply(Put(a))
   }
 
   def apply[F[_]](implicit c: RepoC[F]): RepoC[F] = c
