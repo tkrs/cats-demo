@@ -4,12 +4,11 @@ import java.time.Instant
 import java.time.format.DateTimeFormatterBuilder
 
 import cats.data.EitherK
-import cats.{~>, Eval, InjectK, Monad, MonadError}
 import cats.free.{Free, FreeApplicative => FreeAp}
+import cats.{Eval, InjectK, Monad, MonadError, ~>}
 
-import scala.concurrent.{Await, Future}
-import scala.concurrent.blocking
 import scala.concurrent.duration._
+import scala.concurrent.{Await, Future, blocking}
 
 object mod {
   type ParF[F[_], A] = FreeAp[F, A]
@@ -46,7 +45,7 @@ object mod {
   }
 }
 
-import mod._
+import tut.fap.mod._
 
 final case class CA(s: String)
 final case class CB(l: Long)
